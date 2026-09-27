@@ -2,9 +2,9 @@
 
 A research project for forecasting **15-minute SPY implied total-variance surface dynamics**.
 
-The project is designed around a simple idea:
+The project is built around a simple idea:
 
-> separate the mechanically predictable part of option-surface evolution from the genuinely stochastic market repricing component.
+> Separate the mechanically predictable part of option-surface evolution from the market-driven repricing component.
 
 ---
 
@@ -12,36 +12,28 @@ The project is designed around a simple idea:
 
 Rather than predicting the future volatility surface directly, the framework first removes deterministic maturity roll-down.
 
-The 15-minute surface innovation is defined as:
+The 15-minute surface innovation is
 
-$$
-Y_t
-=
-W_{t+15}
--
-\mathcal{R}_{15}(W_t)
-$$
+```text
+Y_t = W_(t+15) - R_15(W_t)
+```
 
 where:
 
-- $W_t$ is the current implied total-variance surface,
-- $\mathcal{R}_{15}$ is the 15-minute maturity roll-down operator.
+- `W_t` is the current implied total-variance surface.
+- `R_15(W_t)` is the current surface rolled forward by 15 minutes along the maturity dimension.
 
-A persistence-anchored convolutional neural network then predicts the conditional innovation.
+A persistence-anchored convolutional neural network predicts the remaining conditional innovation.
 
-The selected deterministic forecast is:
+The selected deterministic forecast is
 
-$$
-\hat{W}_{t+15}
-=
-\mathcal{R}_{15}(W_t)
-+
-0.765\,f_\theta(H_t)
-$$
+```text
+W_hat_(t+15) = R_15(W_t) + 0.765 * f_theta(H_t)
+```
 
-where $H_t$ contains recent volatility surfaces, support masks, and market-state variables.
+where `H_t` contains recent volatility surfaces, support masks, and market-state variables.
 
-The coefficient $0.765$ is a validation-selected shrinkage factor applied to the neural correction.
+The coefficient `0.765` is a validation-selected shrinkage factor applied to the neural correction.
 
 ---
 
@@ -49,17 +41,23 @@ The coefficient $0.765$ is a validation-selected shrinkage factor applied to the
 
 The model works with implied total variance:
 
-$$
-w(k,\tau)
-=
-\tau \sigma_{\mathrm{IV}}^2
-$$
+```text
+w(k, tau) = tau * sigma_IV^2
+```
+
+with
+
+```text
+k = log(K / S)
+```
 
 where:
 
-- $k = \log(K/S)$ is log-moneyness,
-- $\tau$ is time to maturity,
-- $\sigma_{\mathrm{IV}}$ is implied volatility.
+- `K` is option strike.
+- `S` is the underlying SPY price.
+- `k` is log-moneyness.
+- `tau` is time to maturity.
+- `sigma_IV` is implied volatility.
 
 Each surface is represented on a fixed grid of:
 
@@ -73,7 +71,7 @@ A support mask is maintained alongside every surface so that unsupported regions
 
 ## Data Processing
 
-The raw option data pipeline includes:
+The raw option-data pipeline includes:
 
 - bid/ask consistency checks,
 - implied-volatility validity filters,
@@ -97,15 +95,9 @@ Raw market data are intentionally not included in this repository.
 
 Each forecasting sample uses four historical surfaces:
 
-$$
-W_{t-45},
-\quad
-W_{t-30},
-\quad
-W_{t-15},
-\quad
-W_t
-$$
+```text
+W_(t-45), W_(t-30), W_(t-15), W_t
+```
 
 and predicts the next 15-minute surface innovation.
 
@@ -129,21 +121,17 @@ Only strictly contiguous 15-minute windows are included.
 
 The baseline forecast assumes no additional market repricing beyond maturity roll-down:
 
-$$
-\hat{W}_{t+15}^{\mathrm{pers}}
-=
-\mathcal{R}_{15}(W_t)
-$$
+```text
+W_hat_(t+15)^pers = R_15(W_t)
+```
 
-Equivalently, the predicted innovation is:
+Equivalently, the predicted innovation is
 
-$$
-\hat{Y}_t^{\mathrm{pers}}
-=
-0
-$$
+```text
+Y_hat_t^pers = 0
+```
 
-This provides a strong short-horizon benchmark because implied-volatility surfaces are highly persistent over short intraday intervals.
+This is a strong short-horizon benchmark because implied-volatility surfaces are highly persistent over short intraday intervals.
 
 ---
 
@@ -155,19 +143,15 @@ The selected neural architecture is a smaller persistence-anchored CNN:
 - 2 residual blocks,
 - 41,345 trainable parameters.
 
-The model is initialized so that its raw innovation prediction is exactly zero.
+The model is initialized so that its raw innovation prediction is exactly zero. Therefore, at initialization,
 
-Therefore, at initialization:
-
-$$
-\hat{W}_{t+15}
-=
-\mathcal{R}_{15}(W_t)
-$$
+```text
+W_hat_(t+15) = R_15(W_t)
+```
 
 and the network learns only deviations from the persistence baseline.
 
-A larger model and a smaller model were also tested as capacity ablations.
+A larger and a smaller architecture were also tested as capacity ablations.
 
 ---
 
@@ -189,21 +173,15 @@ The raw CNN correction was found to be slightly too aggressive in many low-movem
 
 A validation-selected constant shrinkage factor was therefore applied:
 
-$$
-\hat{Y}_t
-=
-0.765\,f_\theta(H_t)
-$$
+```text
+Y_hat_t = 0.765 * f_theta(H_t)
+```
 
-The final deterministic forecast becomes:
+The final deterministic forecast is
 
-$$
-\hat{W}_{t+15}
-=
-\mathcal{R}_{15}(W_t)
-+
-0.765\,f_\theta(H_t)
-$$
+```text
+W_hat_(t+15) = R_15(W_t) + 0.765 * f_theta(H_t)
+```
 
 A state-dependent shrinkage model was also tested, but its incremental MSE benefit over constant shrinkage was small. The constant specification was retained for parsimony.
 
@@ -220,7 +198,7 @@ On the held-out test period:
 | MAE | 8.5971e-05 | approximately 8.95e-05 | approximately **4.1% higher** |
 | Day-level win rate | — | **60.4%** | — |
 
-The model therefore improves squared-error performance relative to roll-down persistence, although persistence remains difficult to beat in many low-movement individual samples.
+The model improves squared-error performance relative to roll-down persistence, although persistence remains difficult to beat in many low-movement individual samples.
 
 The strongest gains occur when persistence makes relatively large errors.
 
@@ -252,7 +230,7 @@ Evaluation includes:
 
 ## Repository Structure
 
-The main notebook is:
+Main notebook:
 
 ```text
 intraday_iv_surface_forecasting.ipynb
@@ -292,8 +270,6 @@ The expected raw-data layout contains one subdirectory per trading date.
 
 ## Installation
 
-Create a Python environment and install the required dependencies:
-
 ```bash
 pip install -r requirements.txt
 ```
@@ -323,14 +299,14 @@ Planned extensions include:
 6. conditional Flow Matching for low-dimensional residual distributions,
 7. multi-step volatility-surface trajectory generation.
 
-The long-term objective is to decompose future surface dynamics into:
+The long-term modeling objective is:
 
-$$
-\boxed{
-\text{mechanical transport}
-+
-\text{predictable conditional mean}
-+
-\text{stochastic residual dynamics}
-}
-$$
+```text
+future surface dynamics
+    =
+mechanical transport
+    +
+predictable conditional mean
+    +
+stochastic residual dynamics
+```
